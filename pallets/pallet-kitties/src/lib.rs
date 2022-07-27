@@ -18,7 +18,14 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use frame_support::inherent::Vec;
 use frame_support::dispatch::fmt;
+use frame_support::traits::{Currency, Get};
+use frame_support::{traits::Randomness};
+use frame_support::sp_runtime::traits::{Hash}
 
+use pallet_timestamp::{self as timestamp};
+use pallet_kitty_limit::KittyLimit;
+
+type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 #[frame_support::pallet]
 pub mod pallet {
 	pub use super::*;
@@ -28,9 +35,10 @@ pub mod pallet {
 	pub struct Kitty<T:Config> {
 		id: u32,
 		dna: Vec<u8>,
-		price: u32,
+		price: BalanceOf<T>,
 		gender: Gender,
 		owner: T::AccountId,
+		created_date: <T as pallet_timestamp::Config>::Moment,
 	}
 	pub type Id = u32;
 
@@ -48,9 +56,12 @@ pub mod pallet {
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + timestamp::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type Currency: Currency<Self::AccountId>;
+		type KittyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type KittyLimit:: Randomness<Self::Hash, Self::BlockNumber>;
 	}
 
 	#[pallet::pallet]
@@ -85,6 +96,7 @@ pub mod pallet {
 		/// parameters. [something, who]
 		KittyStored(Vec<u8>, T::AccountId),
 		TransferKittyStored(T::AccountId, u32, T::AccountId),
+		SetLimitKittyStored,
 	}
 
 	// Errors inform users that something went wrong.
@@ -96,6 +108,8 @@ pub mod pallet {
 		StorageOverflow,
 		/// Error don't exits kitty.
 		NotExistKitty,
+		NotOwner,
+		OverKittyLimit,
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -155,6 +169,10 @@ pub mod pallet {
 			// This function will return an error if the extrinsic is not signed.
 			// https://docs.substrate.io/v3/runtime/origins
 			let who = ensure_signed(origin)?;
+			log::info!("create_kitty: {:?}", T::KittyLimit::get() as usize);
+
+			//generate random hash:
+			let dna = Self::random_hash(&who);
 			
 			let kitty_op = <KittyList<T>>::get(kitty_id);
 			ensure!(kitty_op.is_some(), Error::<T>::NotExistKitty);
@@ -192,6 +210,16 @@ pub mod pallet {
 			// Emit an event.
 			Self::deposit_event(Event::TransferKittyStored(who, kitty_id, destination));
 			// Return a successful DispatchResultWithPostInfo
+			Ok(())
+		}
+
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn set_limit_kitty(origin: OriginFor<T>, value: u32) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			let _limit = T::KittyLimit::set(value);
+			// Emit an event.
+			Self::deposit_event(Event::SetLimitKittySuccess);
+
 			Ok(())
 		}
 

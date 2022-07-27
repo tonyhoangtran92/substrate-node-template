@@ -52,6 +52,9 @@ pub use pallet_demo;
 /// Import the template kitties.
 pub use pallet_kitties;
 
+/// Import the template kitty limit
+pub use pallet_kitty_limit
+
 /// An index to a block.
 pub type BlockNumber = u32;
 
@@ -202,6 +205,7 @@ impl frame_system::Config for Runtime {
 	/// The set code logic, just the default since we're not a parachain.
 	type OnSetCode = ();
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type KittyLimit = KittiesLimit;
 }
 
 impl pallet_randomness_collective_flip::Config for Runtime {}
@@ -278,8 +282,12 @@ impl pallet_demo::Config for Runtime {
 
 impl pallet_kitties::Config for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 }
 
+impl pallet_kitty_limit::Config for Runtime {
+	type Event = Event;
+}
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -299,6 +307,7 @@ construct_runtime!(
 		TemplateModule: pallet_template,
 		Demo: pallet_demo,
 		Kitties: pallet_kitties,
+		KittiesLimit: pallet_kitty_limit,
 	}
 );
 
